@@ -4,9 +4,6 @@ import {
   onAuthStateChanged,
   signInWithPopup,
   signOut,
-} from "firebase/auth";
-
-import {
   GoogleAuthProvider,
 } from "firebase/auth";
 
@@ -36,33 +33,37 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     const unsubscribe =
-      onAuthStateChanged(
-        auth,
-        (user) => {
-          if (!user) return;
+      onAuthStateChanged(auth, (user) => {
 
-          const email =
-            user.email?.toLowerCase();
-
-          if (
-            email ===
-            ADMIN_EMAIL.toLowerCase()
-          ) {
-            router.replace("/admin");
-          }
+        if (!user) {
+          return;
         }
-      );
+
+        const email =
+          user.email?.toLowerCase();
+
+        if (
+          email ===
+          ADMIN_EMAIL.toLowerCase()
+        ) {
+          router.replace("/admin");
+        }
+      });
 
     return () => unsubscribe();
   }, [router]);
 
   async function handleGoogleLogin() {
-    if (loading) return;
+
+    if (loading) {
+      return;
+    }
 
     setLoading(true);
     setError("");
 
     try {
+
       const result =
         await signInWithPopup(
           auth,
@@ -74,10 +75,16 @@ export default function AdminLoginPage() {
       const email =
         user.email?.toLowerCase();
 
+      console.log(
+        "GOOGLE USER:",
+        user.email
+      );
+
       if (
         email !==
         ADMIN_EMAIL.toLowerCase()
       ) {
+
         await signOut(auth);
 
         setError(
@@ -90,64 +97,80 @@ export default function AdminLoginPage() {
       router.replace("/admin");
 
     } catch (err: any) {
+
       console.error(
         "GOOGLE LOGIN ERROR:",
         err
       );
 
-      const code =
-        err?.code || "";
+      console.error(
+        "ERROR CODE:",
+        err?.code
+      );
+
+      console.error(
+        "ERROR MESSAGE:",
+        err?.message
+      );
 
       if (
-        code ===
+        err?.code ===
         "auth/popup-closed-by-user"
       ) {
+
         setError(
           "تم إغلاق نافذة تسجيل الدخول."
         );
 
       } else if (
-        code ===
+        err?.code ===
         "auth/popup-blocked"
       ) {
+
         setError(
-          "المتصفح منع نافذة Google. اسمح بالنوافذ المنبثقة لهذا الموقع."
+          "المتصفح منع نافذة Google. اسمح بالنوافذ المنبثقة."
         );
 
       } else if (
-        code ===
+        err?.code ===
         "auth/unauthorized-domain"
       ) {
+
         setError(
-          "دومين الموقع غير مضاف إلى Firebase Authentication."
+          "دومين الموقع غير مضاف إلى Firebase."
         );
 
       } else if (
-        code ===
-        "auth/operation-not-supported-in-this-environment"
+        err?.code ===
+        "auth/argument-error"
       ) {
+
         setError(
-          "تسجيل الدخول بهذه الطريقة غير مدعوم في هذا المتصفح."
+          "هناك خطأ في إعداد Firebase Authentication. تأكد من إعداد Google كمزوّد تسجيل دخول."
         );
 
       } else if (
-        code ===
+        err?.code ===
         "auth/network-request-failed"
       ) {
+
         setError(
-          "حدثت مشكلة في الاتصال بالإنترنت."
+          "حدث خطأ في الاتصال بالإنترنت."
         );
 
       } else {
+
         setError(
           `حدث خطأ في تسجيل الدخول: ${
-            code || "unknown"
+            err?.code || "unknown"
           }`
         );
       }
 
     } finally {
+
       setLoading(false);
+
     }
   }
 
