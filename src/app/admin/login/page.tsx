@@ -3,9 +3,13 @@
 import {
   onAuthStateChanged,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
 } from "firebase/auth";
+
 import { auth, googleProvider } from "@/lib/firebase";
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -17,11 +21,16 @@ export default function AdminLoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  /* =========================
+     التحقق من تسجيل الدخول
+  ========================= */
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (
         user &&
-        user.email?.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+        user.email?.toLowerCase() ===
+          ADMIN_EMAIL.toLowerCase()
       ) {
         router.replace("/admin");
       }
@@ -30,11 +39,86 @@ export default function AdminLoginPage() {
     return () => unsubscribe();
   }, [router]);
 
+  /* =========================
+     استقبال نتيجة تسجيل الدخول
+     للهاتف Redirect
+  ========================= */
+
+  useEffect(() => {
+    async function checkRedirectLogin() {
+      try {
+        const result = await getRedirectResult(auth);
+
+        if (!result) return;
+
+        const user = result.user;
+
+        if (
+          user.email?.toLowerCase() !==
+          ADMIN_EMAIL.toLowerCase()
+        ) {
+          await signOut(auth);
+
+          setError(
+            "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
+          );
+
+          return;
+        }
+
+        router.replace("/admin");
+      } catch (error: any) {
+        console.error(
+          "REDIRECT LOGIN ERROR:",
+          error
+        );
+
+        setError(
+          `حدث خطأ في تسجيل الدخول: ${
+            error?.code || "unknown"
+          }`
+        );
+      }
+    }
+
+    checkRedirectLogin();
+  }, [router]);
+
+  /* =========================
+     تسجيل الدخول
+  ========================= */
+
   async function handleGoogleLogin() {
     setLoading(true);
     setError("");
 
     try {
+      /*
+       * اكتشاف الهاتف
+       */
+      const isMobile =
+        typeof window !== "undefined" &&
+        /Android|iPhone|iPad|iPod|Mobile/i.test(
+          navigator.userAgent
+        );
+
+      /*
+       * الهاتف:
+       * استخدام Redirect بدل Popup
+       */
+      if (isMobile) {
+        await signInWithRedirect(
+          auth,
+          googleProvider
+        );
+
+        return;
+      }
+
+      /*
+       * الكمبيوتر:
+       * استخدام Popup
+       */
       const result = await signInWithPopup(
         auth,
         googleProvider
@@ -56,27 +140,48 @@ export default function AdminLoginPage() {
       }
 
       router.replace("/admin");
-
     } catch (error: any) {
-      console.error("LOGIN ERROR:", error);
+      console.error(
+        "LOGIN ERROR:",
+        error
+      );
 
-      if (error?.code === "auth/popup-closed-by-user") {
-        setError("تم إغلاق نافذة تسجيل الدخول.");
-      } else if (
-        error?.code === "auth/popup-blocked"
+      if (
+        error?.code ===
+        "auth/popup-closed-by-user"
       ) {
         setError(
-          "Chrome منع نافذة Google. اسمح بالنوافذ المنبثقة لهذا الموقع."
+          "تم إغلاق نافذة تسجيل الدخول."
+        );
+      } else if (
+        error?.code ===
+        "auth/popup-blocked"
+      ) {
+        setError(
+          "تم منع نافذة Google. حاول مرة أخرى."
+        );
+      } else if (
+        error?.code ===
+        "auth/unauthorized-domain"
+      ) {
+        setError(
+          "هذا الدومين غير مضاف إلى Firebase Authentication."
         );
       } else {
         setError(
-          `حدث خطأ في تسجيل الدخول: ${error?.code || "unknown"}`
+          `حدث خطأ في تسجيل الدخول: ${
+            error?.code || "unknown"
+          }`
         );
       }
     } finally {
       setLoading(false);
     }
   }
+
+  /* =========================
+     الصفحة
+  ========================= */
 
   return (
     <main className="admin-login">
@@ -87,7 +192,9 @@ export default function AdminLoginPage() {
           🔐
         </div>
 
-        <h1>لوحة الإدارة</h1>
+        <h1>
+          لوحة الإدارة
+        </h1>
 
         <p>
           سجّل الدخول بحساب Google الخاص بالإدارة
