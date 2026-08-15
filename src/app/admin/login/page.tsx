@@ -19,74 +19,92 @@ export default function AdminLoginPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
 
-  /* =========================
+  /* ========================================
      التحقق من تسجيل الدخول
-  ========================= */
+  ======================================== */
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (
-        user &&
-        user.email?.toLowerCase() ===
-          ADMIN_EMAIL.toLowerCase()
-      ) {
-        router.replace("/admin");
-      }
-    });
+    let mounted = true;
 
-    return () => unsubscribe();
-  }, [router]);
-
-  /* =========================
-     استقبال نتيجة تسجيل الدخول
-     للهاتف Redirect
-  ========================= */
-
-  useEffect(() => {
     async function checkRedirectLogin() {
       try {
         const result = await getRedirectResult(auth);
 
-        if (!result) return;
+        if (result?.user) {
+          const user = result.user;
 
-        const user = result.user;
+          if (
+            user.email?.toLowerCase() ===
+            ADMIN_EMAIL.toLowerCase()
+          ) {
+            router.replace("/admin");
+            return;
+          }
 
-        if (
-          user.email?.toLowerCase() !==
-          ADMIN_EMAIL.toLowerCase()
-        ) {
           await signOut(auth);
 
-          setError(
-            "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
-          );
+          if (mounted) {
+            setError(
+              "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
+            );
+            setLoading(false);
+          }
 
           return;
         }
+      } catch (err: any) {
+        console.error("REDIRECT LOGIN ERROR:", err);
 
-        router.replace("/admin");
-      } catch (error: any) {
-        console.error(
-          "REDIRECT LOGIN ERROR:",
-          error
-        );
+        if (mounted) {
+          setError(
+            `حدث خطأ في تسجيل الدخول: ${
+              err?.code || "unknown"
+            }`
+          );
 
-        setError(
-          `حدث خطأ في تسجيل الدخول: ${
-            error?.code || "unknown"
-          }`
-        );
+          setLoading(false);
+        }
       }
+
+      if (!mounted) return;
+
+      const unsubscribe = onAuthStateChanged(
+        auth,
+        (user) => {
+          if (!mounted) return;
+
+          if (user) {
+            if (
+              user.email?.toLowerCase() ===
+              ADMIN_EMAIL.toLowerCase()
+            ) {
+              router.replace("/admin");
+              return;
+            }
+
+            signOut(auth);
+          }
+
+          setChecking(false);
+        }
+      );
+
+      return unsubscribe;
     }
 
     checkRedirectLogin();
+
+    return () => {
+      mounted = false;
+    };
   }, [router]);
 
-  /* =========================
+  /* ========================================
      تسجيل الدخول
-  ========================= */
+  ======================================== */
 
   async function handleGoogleLogin() {
     setLoading(true);
@@ -94,18 +112,16 @@ export default function AdminLoginPage() {
 
     try {
       /*
-       * اكتشاف الهاتف
-       */
+        على الهاتف نستخدم Redirect
+        لأنه أكثر استقرارًا من Popup.
+      */
+
       const isMobile =
         typeof window !== "undefined" &&
-        /Android|iPhone|iPad|iPod|Mobile/i.test(
+        /Android|iPhone|iPad|iPod/i.test(
           navigator.userAgent
         );
 
-      /*
-       * الهاتف:
-       * استخدام Redirect بدل Popup
-       */
       if (isMobile) {
         await signInWithRedirect(
           auth,
@@ -116,9 +132,9 @@ export default function AdminLoginPage() {
       }
 
       /*
-       * الكمبيوتر:
-       * استخدام Popup
-       */
+        الكمبيوتر يستخدم Popup
+      */
+
       const result = await signInWithPopup(
         auth,
         googleProvider
@@ -136,52 +152,80 @@ export default function AdminLoginPage() {
           "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
         );
 
+        setLoading(false);
+
         return;
       }
 
       router.replace("/admin");
-    } catch (error: any) {
-      console.error(
-        "LOGIN ERROR:",
-        error
-      );
+    } catch (err: any) {
+      console.error("LOGIN ERROR:", err);
 
       if (
-        error?.code ===
+        err?.code ===
         "auth/popup-closed-by-user"
       ) {
         setError(
           "تم إغلاق نافذة تسجيل الدخول."
         );
       } else if (
-        error?.code ===
+        err?.code ===
         "auth/popup-blocked"
       ) {
         setError(
-          "تم منع نافذة Google. حاول مرة أخرى."
+          "المتصفح منع نافذة Google. حاول السماح بالنوافذ المنبثقة."
         );
       } else if (
-        error?.code ===
+        err?.code ===
         "auth/unauthorized-domain"
       ) {
         setError(
-          "هذا الدومين غير مضاف إلى Firebase Authentication."
+          "الدومين غير مضاف إلى Firebase Authentication. أضف دومين موقع Netlify إلى Authorized domains."
+        );
+      } else if (
+        err?.code ===
+        "auth/operation-not-allowed"
+      ) {
+        setError(
+          "تسجيل الدخول باستخدام Google غير مفعّل في Firebase."
         );
       } else {
         setError(
           `حدث خطأ في تسجيل الدخول: ${
-            error?.code || "unknown"
+            err?.code || "unknown"
           }`
         );
       }
-    } finally {
+
       setLoading(false);
     }
   }
 
-  /* =========================
+  /* ========================================
+     شاشة التحقق
+  ======================================== */
+
+  if (checking) {
+    return (
+      <main className="admin-login">
+        <div className="admin-login-card">
+          <div className="admin-login-logo">
+            🔐
+          </div>
+
+          <h1>لوحة الإدارة</h1>
+
+          <p>
+            جاري التحقق...
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  /* ========================================
      الصفحة
-  ========================= */
+  ======================================== */
 
   return (
     <main className="admin-login">
