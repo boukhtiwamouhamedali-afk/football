@@ -2,44 +2,49 @@
 
 import {
   onAuthStateChanged,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithPopup,
   signOut,
 } from "firebase/auth";
 
-import { auth, googleProvider } from "@/lib/firebase";
+import {
+  doc,
+  setDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+
+import {
+  auth,
+  googleProvider,
+  db,
+} from "@/lib/firebase";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-const ADMIN_EMAIL = "boukhtiwamouhamedali@gmail.com";
+const ADMIN_EMAIL =
+  "boukhtiwamouhamedali@gmail.com";
 
 export default function AdminLoginPage() {
   const router = useRouter();
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] =
+    useState(false);
 
+  const [checking, setChecking] =
+    useState(true);
 
-  /* =========================================
-     CHECK LOGIN
-  ========================================= */
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
-    let active = true;
-
-    async function checkLogin() {
-      try {
-        /*
-          أول شيء ننتظر نتيجة Google Redirect
-        */
-
-        const result = await getRedirectResult(auth);
-
-        if (!active) return;
-
-        if (result?.user) {
-          const user = result.user;
+    const unsubscribe =
+      onAuthStateChanged(
+        auth,
+        (user) => {
+          if (!user) {
+            setChecking(false);
+            return;
+          }
 
           if (
             user.email?.toLowerCase() ===
@@ -49,91 +54,84 @@ export default function AdminLoginPage() {
             return;
           }
 
-          await signOut(auth);
-
-          setError(
-            "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
-          );
-
-          setLoading(false);
-
-          return;
+          signOut(auth);
+          setChecking(false);
         }
+      );
 
-        /*
-          إذا ما في Redirect Result
-          نفحص حالة Firebase الحالية
-        */
+    return () => unsubscribe();
+  }, [router]);
 
-        const unsubscribe = onAuthStateChanged(
+  async function handleGoogleLogin() {
+    setLoading(true);
+    setError("");
+
+    try {
+      const result =
+        await signInWithPopup(
           auth,
-          async (user) => {
-            if (!active) return;
-
-            if (user) {
-              if (
-                user.email?.toLowerCase() ===
-                ADMIN_EMAIL.toLowerCase()
-              ) {
-                router.replace("/admin");
-                return;
-              }
-
-              await signOut(auth);
-
-              setError(
-                "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
-              );
-            }
-          }
+          googleProvider
         );
 
-        return unsubscribe;
+      const user = result.user;
 
-      } catch (err: any) {
-        console.error(
-          "FIREBASE REDIRECT ERROR:",
-          err
-        );
+      /* التحقق من حساب الإدارة */
 
-        if (!active) return;
+      if (
+        user.email?.toLowerCase() !==
+        ADMIN_EMAIL.toLowerCase()
+      ) {
+        await signOut(auth);
 
         setError(
-          `خطأ Firebase: ${
-            err?.code || "unknown"
-          }`
+          "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
         );
 
         setLoading(false);
+
+        return;
       }
-    }
 
-    checkLogin();
+      /* إنشاء معرف للجهاز */
 
-    return () => {
-      active = false;
-    };
-  }, [router]);
+      let deviceId =
+        localStorage.getItem(
+          "football_team_device_id"
+        );
 
+      if (!deviceId) {
+        deviceId =
+          crypto.randomUUID();
 
-  /* =========================================
-     GOOGLE LOGIN
-  ========================================= */
+        localStorage.setItem(
+          "football_team_device_id",
+          deviceId
+        );
+      }
 
-  async function handleGoogleLogin() {
-    try {
-      setLoading(true);
-      setError("");
+      /* تسجيل الجهاز في Firestore */
 
-      /*
-        نستخدم Redirect بدل Popup
-        لأنه أفضل على الهاتف.
-      */
-
-      await signInWithRedirect(
-        auth,
-        googleProvider
+      await setDoc(
+        doc(
+          db,
+          "adminDevices",
+          deviceId
+        ),
+        {
+          uid: user.uid,
+          email: user.email,
+          trusted: true,
+          lastLoginAt:
+            serverTimestamp(),
+        },
+        {
+          merge: true,
+        }
       );
+
+      /* الدخول إلى لوحة الإدارة */
+
+      router.replace("/admin");
 
     } catch (err: any) {
       console.error(
@@ -141,20 +139,88 @@ export default function AdminLoginPage() {
         err
       );
 
-      setLoading(false);
-
-      setError(
-        `خطأ Firebase: ${
-          err?.code || "unknown"
-        }`
+      console.error(
+        "ERROR CODE:",
+        err?.code
       );
+
+      console.error(
+        "ERROR MESSAGE:",
+        err?.message
+      );
+
+      if (
+        err?.code ===
+        "auth/popup-closed-by-user"
+      ) {
+        setError(
+          "تم إغلاق نافذة Google."
+        );
+      }
+
+      else if (
+        err?.code ===
+        "auth/popup-blocked"
+      ) {
+        setError(
+          "المتصفح منع نافذة Google. اسمح بالنوافذ المنبثقة لهذا الموقع."
+        );
+      }
+
+      else if (
+        err?.code ===
+        "auth/unauthorized-domain"
+      ) {
+        setError(
+          "دومين Netlify غير مضاف إلى Firebase Authorized domains."
+        );
+      }
+
+      else if (
+        err?.code ===
+        "auth/operation-not-allowed"
+      ) {
+        setError(
+          "تسجيل الدخول باستخدام Google غير مفعّل في Firebase."
+        );
+      }
+
+      else {
+        setError(
+          `خطأ Firebase: ${
+            err?.code ||
+            "unknown"
+          }`
+        );
+      }
+
+      setLoading(false);
     }
   }
 
+  if (checking) {
+    return (
+      <main className="admin-login">
 
-  /* =========================================
-     PAGE
-  ========================================= */
+        <div className="admin-login-card">
+
+          <div className="admin-login-logo">
+            🔐
+          </div>
+
+          <h1>
+            لوحة الإدارة
+          </h1>
+
+          <p>
+            جاري التحقق...
+          </p>
+
+        </div>
+
+      </main>
+    );
+  }
 
   return (
     <main className="admin-login">
@@ -190,13 +256,11 @@ export default function AdminLoginPage() {
 
         </button>
 
-
         {error && (
           <div className="login-error">
             {error}
           </div>
         )}
-
 
         <a
           href="/"
