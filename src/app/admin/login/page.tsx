@@ -2,7 +2,6 @@
 
 import {
   onAuthStateChanged,
-  signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
   signOut,
@@ -19,19 +18,25 @@ export default function AdminLoginPage() {
   const router = useRouter();
 
   const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
 
-  /* ========================================
-     التحقق من تسجيل الدخول
-  ======================================== */
+
+  /* =========================================
+     CHECK LOGIN
+  ========================================= */
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    async function checkRedirectLogin() {
+    async function checkLogin() {
       try {
+        /*
+          أول شيء ننتظر نتيجة Google Redirect
+        */
+
         const result = await getRedirectResult(auth);
+
+        if (!active) return;
 
         if (result?.user) {
           const user = result.user;
@@ -46,186 +51,110 @@ export default function AdminLoginPage() {
 
           await signOut(auth);
 
-          if (mounted) {
-            setError(
-              "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
-            );
-            setLoading(false);
-          }
-
-          return;
-        }
-      } catch (err: any) {
-        console.error("REDIRECT LOGIN ERROR:", err);
-
-        if (mounted) {
           setError(
-            `حدث خطأ في تسجيل الدخول: ${
-              err?.code || "unknown"
-            }`
+            "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
           );
 
           setLoading(false);
+
+          return;
         }
-      }
 
-      if (!mounted) return;
+        /*
+          إذا ما في Redirect Result
+          نفحص حالة Firebase الحالية
+        */
 
-      const unsubscribe = onAuthStateChanged(
-        auth,
-        (user) => {
-          if (!mounted) return;
+        const unsubscribe = onAuthStateChanged(
+          auth,
+          async (user) => {
+            if (!active) return;
 
-          if (user) {
-            if (
-              user.email?.toLowerCase() ===
-              ADMIN_EMAIL.toLowerCase()
-            ) {
-              router.replace("/admin");
-              return;
+            if (user) {
+              if (
+                user.email?.toLowerCase() ===
+                ADMIN_EMAIL.toLowerCase()
+              ) {
+                router.replace("/admin");
+                return;
+              }
+
+              await signOut(auth);
+
+              setError(
+                "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
+              );
             }
-
-            signOut(auth);
           }
+        );
 
-          setChecking(false);
-        }
-      );
+        return unsubscribe;
 
-      return unsubscribe;
+      } catch (err: any) {
+        console.error(
+          "FIREBASE REDIRECT ERROR:",
+          err
+        );
+
+        if (!active) return;
+
+        setError(
+          `خطأ Firebase: ${
+            err?.code || "unknown"
+          }`
+        );
+
+        setLoading(false);
+      }
     }
 
-    checkRedirectLogin();
+    checkLogin();
 
     return () => {
-      mounted = false;
+      active = false;
     };
   }, [router]);
 
-  /* ========================================
-     تسجيل الدخول
-  ======================================== */
+
+  /* =========================================
+     GOOGLE LOGIN
+  ========================================= */
 
   async function handleGoogleLogin() {
-    setLoading(true);
-    setError("");
-
     try {
-      /*
-        على الهاتف نستخدم Redirect
-        لأنه أكثر استقرارًا من Popup.
-      */
-
-      const isMobile =
-        typeof window !== "undefined" &&
-        /Android|iPhone|iPad|iPod/i.test(
-          navigator.userAgent
-        );
-
-      if (isMobile) {
-        await signInWithRedirect(
-          auth,
-          googleProvider
-        );
-
-        return;
-      }
+      setLoading(true);
+      setError("");
 
       /*
-        الكمبيوتر يستخدم Popup
+        نستخدم Redirect بدل Popup
+        لأنه أفضل على الهاتف.
       */
 
-      const result = await signInWithPopup(
+      await signInWithRedirect(
         auth,
         googleProvider
       );
 
-      const user = result.user;
-
-      if (
-        user.email?.toLowerCase() !==
-        ADMIN_EMAIL.toLowerCase()
-      ) {
-        await signOut(auth);
-
-        setError(
-          "هذا الحساب ليس حساب الإدارة المسموح له بالدخول."
-        );
-
-        setLoading(false);
-
-        return;
-      }
-
-      router.replace("/admin");
     } catch (err: any) {
-      console.error("LOGIN ERROR:", err);
-
-      if (
-        err?.code ===
-        "auth/popup-closed-by-user"
-      ) {
-        setError(
-          "تم إغلاق نافذة تسجيل الدخول."
-        );
-      } else if (
-        err?.code ===
-        "auth/popup-blocked"
-      ) {
-        setError(
-          "المتصفح منع نافذة Google. حاول السماح بالنوافذ المنبثقة."
-        );
-      } else if (
-        err?.code ===
-        "auth/unauthorized-domain"
-      ) {
-        setError(
-          "الدومين غير مضاف إلى Firebase Authentication. أضف دومين موقع Netlify إلى Authorized domains."
-        );
-      } else if (
-        err?.code ===
-        "auth/operation-not-allowed"
-      ) {
-        setError(
-          "تسجيل الدخول باستخدام Google غير مفعّل في Firebase."
-        );
-      } else {
-        setError(
-          `حدث خطأ في تسجيل الدخول: ${
-            err?.code || "unknown"
-          }`
-        );
-      }
+      console.error(
+        "GOOGLE LOGIN ERROR:",
+        err
+      );
 
       setLoading(false);
+
+      setError(
+        `خطأ Firebase: ${
+          err?.code || "unknown"
+        }`
+      );
     }
   }
 
-  /* ========================================
-     شاشة التحقق
-  ======================================== */
 
-  if (checking) {
-    return (
-      <main className="admin-login">
-        <div className="admin-login-card">
-          <div className="admin-login-logo">
-            🔐
-          </div>
-
-          <h1>لوحة الإدارة</h1>
-
-          <p>
-            جاري التحقق...
-          </p>
-        </div>
-      </main>
-    );
-  }
-
-  /* ========================================
-     الصفحة
-  ======================================== */
+  /* =========================================
+     PAGE
+  ========================================= */
 
   return (
     <main className="admin-login">
@@ -250,6 +179,7 @@ export default function AdminLoginPage() {
           disabled={loading}
           className="google-login-button"
         >
+
           <span className="google-icon">
             G
           </span>
@@ -257,13 +187,16 @@ export default function AdminLoginPage() {
           {loading
             ? "جاري تسجيل الدخول..."
             : "تسجيل الدخول باستخدام Google"}
+
         </button>
+
 
         {error && (
           <div className="login-error">
             {error}
           </div>
         )}
+
 
         <a
           href="/"
