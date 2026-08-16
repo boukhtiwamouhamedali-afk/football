@@ -4498,3 +4498,251 @@ footer {
     padding: 11px;
   }
 }
+/* ========================================
+   ADMIN PLAYERS
+======================================== */
+
+.player-form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.cancel-player-button {
+  width: 100%;
+  height: 42px;
+
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+
+  background: rgba(255,255,255,0.05);
+  color: #ddd;
+
+  font-size: 10px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+/* قائمة اللاعبين */
+
+.players-admin-list {
+  margin-top: 20px;
+}
+
+.players-admin-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 10px;
+}
+
+.players-admin-list-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.players-admin-list-header span {
+  min-width: 24px;
+  height: 24px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 7px;
+
+  background: rgba(25,196,99,0.1);
+  color: #55e895;
+
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.players-admin-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.player-admin-card {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+
+  padding: 10px;
+
+  background: rgba(16,23,34,0.95);
+
+  border: 1px solid var(--border);
+  border-radius: 13px;
+}
+
+.player-admin-image {
+  width: 55px;
+  height: 55px;
+
+  flex-shrink: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+
+  border-radius: 10px;
+
+  background: rgba(25,196,99,0.08);
+
+  font-size: 25px;
+}
+
+.player-admin-image img {
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
+}
+
+.player-admin-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.player-admin-info h3 {
+  margin: 0;
+
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.player-admin-info p {
+  margin-top: 3px;
+
+  color: var(--muted);
+
+  font-size: 9px;
+}
+
+.player-admin-stats {
+  display: flex;
+  flex-wrap: wrap;
+
+  gap: 4px;
+
+  margin-top: 6px;
+}
+
+.player-admin-stats span {
+  padding: 3px 5px;
+
+  border-radius: 5px;
+
+  background: rgba(255,255,255,0.04);
+
+  color: var(--muted);
+
+  font-size: 7px;
+}
+
+.player-admin-stats strong {
+  color: #55e895;
+}
+
+.player-admin-actions {
+  display: flex;
+  flex-direction: column;
+
+  gap: 5px;
+
+  flex-shrink: 0;
+}
+
+.player-admin-actions button {
+  width: 32px;
+  height: 32px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 8px;
+
+  cursor: pointer;
+
+  font-size: 12px;
+}
+
+.player-edit-button {
+  background: rgba(255,255,255,0.06);
+}
+
+.player-delete-button {
+  background: rgba(220,38,38,0.10);
+}
+
+.players-admin-empty {
+  padding: 35px 15px;
+
+  text-align: center;
+
+  border: 1px dashed rgba(255,255,255,0.1);
+  border-radius: 15px;
+
+  color: var(--muted);
+}
+
+.players-admin-empty > :first-child {
+  display: block;
+
+  margin-bottom: 8px;
+
+  font-size: 32px;
+}
+
+.players-admin-empty h3 {
+  color: white;
+
+  font-size: 13px;
+}
+
+.players-admin-empty p {
+  margin-top: 5px;
+
+  font-size: 9px;
+}
+
+/* هاتف صغير */
+
+@media (max-width: 400px) {
+
+  .player-admin-card {
+    gap: 7px;
+    padding: 8px;
+  }
+
+  .player-admin-image {
+    width: 48px;
+    height: 48px;
+  }
+
+  .player-admin-actions button {
+    width: 29px;
+    height: 29px;
+  }
+
+  .player-admin-stats {
+    gap: 3px;
+  }
+
+  .player-admin-stats span {
+    font-size: 6px;
+  }
+}
